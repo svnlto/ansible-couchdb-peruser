@@ -1,0 +1,150 @@
+---
+- name: create couchdb group
+  group: name=couchdb state=present
+
+- name: create couchdb user
+  user: name=couchdb
+        uid=5001
+        group=couchdb
+        shell=/bin/bash
+        system=yes
+        state=present
+
+
+- name: Add couchdb user to sudoers
+  action: lineinfile
+          dest=/etc/sudoers
+          regexp="couchdb ALL"
+          line="couchdb ALL=(ALL) ALL"
+          state=present
+
+- name: add apt-key
+  apt_key: url='http://packages.erlang-solutions.com/ubuntu/erlang_solutions.asc' state=present
+
+- name: ensure erlang-solutions source in sources.list.d
+  apt_repository: repo='deb http://binaries.erlang-solutions.com/ubuntu precise contrib' state=present
+
+- name: update cache
+  apt: update_cache=yes
+
+
+- name: Install dependencies
+  apt: pkg={{ item }} update_cache=yes cache_valid_time=3600
+  with_items:
+    - git-core
+    - esl-erlang
+    - libtool
+    - automake
+    - autoconf
+    - autoconf-archive
+    - pkg-config
+    - libmozjs185-dev
+    - libicu-dev
+    - libcurl4-gnutls-dev
+    - git
+    - curl
+    - build-essential
+  tags: couchdb
+
+
+- name: check out couchdb repo
+  git: repo={{ couchdb.repo }}
+       dest={{ couchdb.src }}
+       version={{ couchdb.version }}
+       accept_hostkey=yes
+       update=no
+  tags: couchdb
+
+- name: bootstrap couchdb
+  command: ./bootstrap
+           chdir={{ couchdb.src }}
+           creates={{ couchdb.src }}/configure
+  tags: couchdb
+
+- name: configure couchdb
+  command: ./configure --disable-docs --prefix={{ couchdb.dest }}
+           chdir={{ couchdb.src }}
+           creates={{ couchdb.src }}/Makefile
+  tags: couchdb
+
+- name: build and install couchdb
+  command: make all install
+           chdir={{ couchdb.src }}
+           creates={{ couchdb.dest }}
+  tags: couchdb
+
+- name: ensure couchdb log dir exists
+  file: path={{ couchdb.dest }}/var/log/couchdb
+        owner=couchdb
+        group=couchdb
+        state=directory
+  tags: couchdb
+
+- name: ensure couchdb run dir exists
+  file: path={{ couchdb.dest }}/var/run/couchdb
+        owner=couchdb
+        group=couchdb
+        state=directory
+  tags: couchdb
+
+- name: ensure couchdb lib dir exists
+  file: path={{ couchdb.dest }}/var/lib/couchdb
+        owner=couchdb
+        group=couchdb
+        state=directory
+  tags: couchdb
+
+- name: configure couchdb
+  copy: src=templates/couchdb/local.ini dest={{ couchdb.dest }}/etc/couchdb/local.ini
+  tags: couchdb
+
+- name: ensure couchdb plugins dir exists
+  file: path={{ couchdb.dest }}/lib/couchdb/plugins
+        owner=couchdb
+        group=couchdb
+        state=directory
+  tags: couchdb
+
+- name: check out rebar repo
+  git: repo={{ couchdb.rebar_repo }}
+       dest={{ couchdb.rebar_src }}
+       version={{ couchdb.rebar_version }}
+       accept_hostkey=yes
+       update=no
+  tags: couchdb
+
+- name: make rebar
+  command: ./bootstrap
+           chdir={{ couchdb.rebar_src }}
+           creates={{ couchdb.rebar_src }}/rebar
+  tags: couchdb
+
+- name: check out peruser repo
+  git: repo={{ couchdb.peruser_repo }}
+       dest={{ couchdb.peruser_src }}
+       version={{ couchdb.peruser_version }}
+       accept_hostkey=yes
+       update=no
+  tags: couchdb
+
+- name: make peruser
+  command: env PATH={{ couchdb.dest }}/bin:{{ couchdb.rebar_src }}:$PATH make all
+           chdir={{ couchdb.peruser_src }}
+           creates={{ couchdb.peruser_src }}/ebin/peruser.beam
+  tags: couchdb
+
+- name: install peruser symlink
+  file: src={{ couchdb.peruser_src }}
+        path={{ couchdb.dest }}/lib/couchdb/plugins/peruser
+        state=link
+  tags: couchdb
+
+- name: couchdb in init.d
+  file: src={{ couchdb.dest }}/etc/init.d/couchdb
+        path=/etc/init.d/couchdb
+        state=link
+  tags: couchdb
+
+- name: couchdb service
+  service: name=couchdb state=started enabled=yes
+

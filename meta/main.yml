@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  author: Sven Lito
+  description: Install CouchDB with per-user plugin
+  company: Svenlito Software Ltd
+  license: BSD
+  min_ansible_version: 1.4
+  platforms:
+  - name: Ubuntu
+    versions:
+     - precise
+  categories:
+  - development
+  - databases
+  - web
+
+dependencies: []
