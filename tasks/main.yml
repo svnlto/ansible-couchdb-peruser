@@ -45,7 +45,6 @@
     - build-essential
   tags: couchdb
 
-
 - name: check out couchdb repo
   git: repo={{ couchdb.repo }}
        dest={{ couchdb.src }}
@@ -53,6 +52,8 @@
        accept_hostkey=yes
        update=no
   tags: couchdb
+  sudo: yes
+  sudo_user: couchdb
 
 - name: bootstrap couchdb
   command: ./bootstrap
@@ -72,25 +73,15 @@
            creates={{ couchdb.dest }}
   tags: couchdb
 
-- name: ensure couchdb log dir exists
-  file: path={{ couchdb.dest }}/var/log/couchdb
+- name: ensure couchdb directories exist
+  file: path={{ couchdb.dest }}/var/{{ item }}/couchdb
         owner=couchdb
         group=couchdb
         state=directory
-  tags: couchdb
-
-- name: ensure couchdb run dir exists
-  file: path={{ couchdb.dest }}/var/run/couchdb
-        owner=couchdb
-        group=couchdb
-        state=directory
-  tags: couchdb
-
-- name: ensure couchdb lib dir exists
-  file: path={{ couchdb.dest }}/var/lib/couchdb
-        owner=couchdb
-        group=couchdb
-        state=directory
+  with_items:
+    - log
+    - run
+    - lib
   tags: couchdb
 
 - name: configure couchdb
@@ -144,6 +135,10 @@
         state=link
   tags: couchdb
 
+- name: ensure permissions
+  action: shell /bin/bash -c "chown -R couchdb:couchdb /home/couchdb"
+
 - name: couchdb service
   service: name=couchdb state=started enabled=yes
+
 
